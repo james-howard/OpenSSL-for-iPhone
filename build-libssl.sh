@@ -28,19 +28,20 @@ set -u
 DEFAULTVERSION="1.1.1u"
 
 # Default (=full) set of targets to build
-DEFAULTTARGETS="ios-sim-cross-x86_64 ios-sim-cross-arm64 ios-cross-arm64 mac-catalyst-x86_64 mac-catalyst-arm64 tvos-sim-cross-x86_64 tvos-sim-cross-arm64 tvos-cross-arm64 watchos-sim-cross-x86_64 watchos-sim-cross-arm64 watchos-cross-armv7k watchos-cross-arm64_32"
+DEFAULTTARGETS="ios-sim-cross-x86_64 ios-sim-cross-arm64 ios-cross-arm64 mac-catalyst-x86_64 mac-catalyst-arm64 tvos-sim-cross-x86_64 tvos-sim-cross-arm64 tvos-cross-arm64 xros-sim-cross-x86_64 xros-sim-cross-arm64 xros-cross-arm64 watchos-sim-cross-x86_64 watchos-sim-cross-arm64 watchos-cross-armv7k watchos-cross-arm64_32"
 
 # Excluded targets:
 #   ios-sim-cross-i386  Legacy
 #   ios-cross-armv7s    Dropped by Apple in Xcode 6 (https://www.cocoanetics.com/2014/10/xcode-6-drops-armv7s/)
 #   ios-cross-arm64e    Not in use as of Xcode 12
 
-# Minimum iOS/tvOS SDK version to build for
+# Minimum SDK version to build for
 
-IOS_MIN_SDK_VERSION="15.0"
-TVOS_MIN_SDK_VERSION="15.0"
-WATCHOS_MIN_SDK_VERSION="8.5"
-MACOSX_MIN_SDK_VERSION="12.3"
+IOS_MIN_SDK_VERSION="${IOS_MIN_SDK_VERSION:-15.0}"
+TVOS_MIN_SDK_VERSION="${TVOS_MIN_SDK_VERSION:-15.0}"
+XROS_MIN_SDK_VERSION="${XROS_MIN_SDK_VERSION:-1.0}"
+WATCHOS_MIN_SDK_VERSION="${WATCHOS_MIN_SDK_VERSION:-8.5}"
+MACOSX_MIN_SDK_VERSION="${MACOSX_MIN_SDK_VERSION:-12.3}"
 
 # Init optional env variables (use available variable or default to empty string)
 CURL_OPTIONS="${CURL_OPTIONS:-}"
@@ -58,6 +59,7 @@ echo_help()
   echo "     --macosx-sdk=SDKVERSION       Override MacOSX SDK version"
   echo "     --noparallel                  Disable running make with parallel jobs (make -j)"
   echo "     --tvos-sdk=SDKVERSION         Override tvOS SDK version"
+  echo "     --xros-sdk=SDKVERSION         Override xrOS SDK version"
   echo "     --disable-bitcode             Disable embedding Bitcode"
   echo " -v, --verbose                     Enable verbose logging"
   echo "     --verbose-on-error            Dump last 500 lines from log file if an error occurs (for Travis builds)"
@@ -182,6 +184,14 @@ finish_build_loop()
     LIBSSL_TVOSSIM+=("${TARGETDIR}/lib/libssl.a")
     LIBCRYPTO_TVOSSIM+=("${TARGETDIR}/lib/libcrypto.a")
     OPENSSLCONF_SUFFIX="tvos_${ARCH}"
+  elif [[ "${PLATFORM}" == XROS ]]; then
+    LIBSSL_XROS+=("${TARGETDIR}/lib/libssl.a")
+    LIBCRYPTO_XROS+=("${TARGETDIR}/lib/libcrypto.a")
+    OPENSSLCONF_SUFFIX="xros_${ARCH}"
+  elif [[ "${PLATFORM}" == XRSimulator ]]; then
+    LIBSSL_XROSSIM+=("${TARGETDIR}/lib/libssl.a")
+    LIBCRYPTO_XROSSIM+=("${TARGETDIR}/lib/libcrypto.a")
+    OPENSSLCONF_SUFFIX="xros_${ARCH}"
   elif [[ "${PLATFORM}" == WatchOS ]]; then
     LIBSSL_WATCHOS+=("${TARGETDIR}/lib/libssl.a")
     LIBCRYPTO_WATCHOS+=("${TARGETDIR}/lib/libcrypto.a")
@@ -220,6 +230,7 @@ LOG_VERBOSE=""
 PARALLEL=""
 TARGETS=""
 TVOS_SDKVERSION=""
+XROS_SDKVERSION=""
 VERSION=""
 WATCHOS_SDKVERSION=""
 
@@ -268,6 +279,10 @@ case $i in
     ;;
   --tvos-sdk=*)
     TVOS_SDKVERSION="${i#*=}"
+    shift
+    ;;
+  --xros-sdk=*)
+    XROS_SDKVERSION="${i#*=}"
     shift
     ;;
   --watchos-sdk=*)
@@ -348,6 +363,9 @@ fi
 if [ ! -n "${TVOS_SDKVERSION}" ]; then
   TVOS_SDKVERSION=$(xcrun -sdk appletvos --show-sdk-version)
 fi
+if [ ! -n "${XROS_SDKVERSION}" ]; then
+  XROS_SDKVERSION=$(xcrun -sdk xros --show-sdk-version)
+fi
 if [ ! -n "${WATCHOS_SDKVERSION}" ]; then
   WATCHOS_SDKVERSION=$(xcrun -sdk watchos --show-sdk-version)
 fi
@@ -396,6 +414,7 @@ echo "  OpenSSL version: ${VERSION}"
 echo "  Targets: ${TARGETS}"
 echo "  iOS SDK: ${IOS_SDKVERSION}"
 echo "  tvOS SDK: ${TVOS_SDKVERSION}"
+echo "  xrOS SDK: ${XROS_SDKVERSION}"
 echo "  watchOS SDK: ${WATCHOS_SDKVERSION}"
 echo "  MacOSX SDK: ${MACOSX_SDKVERSION}"
 
@@ -483,6 +502,10 @@ LIBSSL_TVOS=()
 LIBSSL_TVOSSIM=()
 LIBCRYPTO_TVOS=()
 LIBCRYPTO_TVOSSIM=()
+LIBSSL_XROS=()
+LIBSSL_XROSSIM=()
+LIBCRYPTO_XROS=()
+LIBCRYPTO_XROSSIM=()
 LIBSSL_WATCHOS=()
 LIBSSL_WATCHOSSIM=()
 LIBCRYPTO_WATCHOS=()
@@ -521,12 +544,30 @@ if [ ${#LIBSSL_TVOS[@]} -gt 0 ]; then
   echo "${CURRENTPATH}/lib/libcrypto-tvOS.a"
 fi
 if [ ${#LIBSSL_TVOSSIM[@]} -gt 0 ]; then
-  echo "Build library for tvOS..."
+  echo "Build library for tvOS Simulator..."
   lipo -create ${LIBSSL_TVOSSIM[@]} -output "${CURRENTPATH}/lib/libssl-tvOS-Sim.a"
   lipo -create ${LIBCRYPTO_TVOSSIM[@]} -output "${CURRENTPATH}/lib/libcrypto-tvOS-Sim.a"
   echo "\n=====>tvOS Simulator SSL and Crypto lib files:"
   echo "${CURRENTPATH}/lib/libssl-tvOS-Sim.a"
   echo "${CURRENTPATH}/lib/libcrypto-tvOS-Sim.a"
+fi
+
+# Build xrOS/Simulator library if selected for build
+if [ ${#LIBSSL_XROS[@]} -gt 0 ]; then
+  echo "Build library for xrOS..."
+  lipo -create ${LIBSSL_XROS[@]} -output "${CURRENTPATH}/lib/libssl-xrOS.a"
+  lipo -create ${LIBCRYPTO_XROS[@]} -output "${CURRENTPATH}/lib/libcrypto-xrOS.a"
+  echo "\n=====>xrOS SSL and Crypto lib files:"
+  echo "${CURRENTPATH}/lib/libssl-xrOS.a"
+  echo "${CURRENTPATH}/lib/libcrypto-xrOS.a"
+fi
+if [ ${#LIBSSL_XROSSIM[@]} -gt 0 ]; then
+  echo "Build library for xrOS Simulator..."
+  lipo -create ${LIBSSL_XROSSIM[@]} -output "${CURRENTPATH}/lib/libssl-xrOS-Sim.a"
+  lipo -create ${LIBCRYPTO_XROSSIM[@]} -output "${CURRENTPATH}/lib/libcrypto-xrOS-Sim.a"
+  echo "\n=====>xrOS Simulator SSL and Crypto lib files:"
+  echo "${CURRENTPATH}/lib/libssl-xrOS-Sim.a"
+  echo "${CURRENTPATH}/lib/libcrypto-xrOS-Sim.a"
 fi
 
 # Build watchOS/Simulator library if selected for build
@@ -610,6 +651,12 @@ if [ ${#OPENSSLCONF_ALL[@]} -gt 1 ]; then
       ;;
       *_tvos_arm64.h)
         DEFINE_CONDITION="TARGET_OS_TV && (TARGET_OS_EMBEDDED || TARGET_OS_SIMULATOR) && TARGET_CPU_ARM64"
+      ;;
+      *_xros_x86_64.h)
+        DEFINE_CONDITION="TARGET_OS_XR && TARGET_OS_SIMULATOR && TARGET_CPU_X86_64"
+      ;;
+      *_xros_arm64.h)
+        DEFINE_CONDITION="TARGET_OS_XR && (TARGET_OS_EMBEDDED || TARGET_OS_SIMULATOR) && TARGET_CPU_ARM64"
       ;;
       *_watchos_i386.h)
         DEFINE_CONDITION="TARGET_OS_WATCH && TARGET_OS_SIMULATOR && TARGET_CPU_X86"

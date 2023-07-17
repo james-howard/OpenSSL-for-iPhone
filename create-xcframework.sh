@@ -55,7 +55,7 @@ remove_temp_files()
 
 remove_temp_files
 make_include_dir
-PLATFORMS="iOS tvOS watchOS Catalyst"
+PLATFORMS="iOS tvOS xrOS watchOS Catalyst"
 for PLATFORM in $PLATFORMS
 do
   SLICE="$PLATFORM"
