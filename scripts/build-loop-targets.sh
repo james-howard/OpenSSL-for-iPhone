@@ -30,6 +30,8 @@ do
     SDKVERSION="${WATCHOS_SDKVERSION}"
   elif [[ "${TARGET}" == "mac-catalyst"* ]]; then
     SDKVERSION="${MACOSX_SDKVERSION}"
+  elif [[ "${TARGET}" == "macos-"* ]]; then
+    SDKVERSION="${MACOSX_SDKVERSION}"
   else
     SDKVERSION="${IOS_SDKVERSION}"
   fi
@@ -59,6 +61,8 @@ do
     PLATFORM="WatchOS"
   elif [[ "${TARGET}" == "mac-catalyst-"* ]]; then
     PLATFORM="MacOSX"
+  elif [[ "${TARGET}" == "macos-"* ]]; then
+    PLATFORM="MacOSX"
   else
     PLATFORM="iPhoneOS"
   fi
@@ -70,6 +74,11 @@ do
   export CROSS_COMPILE="${DEVELOPER}/Toolchains/XcodeDefault.xctoolchain/usr/bin/"
   export CROSS_TOP="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
   export CROSS_SDK="${PLATFORM}${SDKVERSION}.sdk"
+  
+  PLATFORM="${PLATFORM}"
+  if [[ "${TARGET}" == "mac-catalyst-"* ]]; then
+    PLATFORM="Catalyst"
+  fi
 
   # Prepare TARGETDIR and SOURCEDIR
   prepare_target_source_dirs

@@ -25,7 +25,7 @@ set -u
 # SCRIPT DEFAULTS
 
 # Default version in case no version is specified
-DEFAULTVERSION="1.1.1u"
+DEFAULTVERSION="3.2.0"
 
 # Default (=full) set of targets to build
 DEFAULTTARGETS="ios-sim-cross-x86_64 ios-sim-cross-arm64 ios-cross-arm64 mac-catalyst-x86_64 mac-catalyst-arm64 tvos-sim-cross-x86_64 tvos-sim-cross-arm64 tvos-cross-arm64 xros-sim-cross-x86_64 xros-sim-cross-arm64 xros-cross-arm64 watchos-sim-cross-x86_64 watchos-sim-cross-arm64 watchos-cross-armv7k watchos-cross-arm64_32"
@@ -200,6 +200,10 @@ finish_build_loop()
     LIBSSL_WATCHOSSIM+=("${TARGETDIR}/lib/libssl.a")
     LIBCRYPTO_WATCHOSSIM+=("${TARGETDIR}/lib/libcrypto.a")
     OPENSSLCONF_SUFFIX="watchos_${ARCH}"
+  elif [[ "${PLATFORM}" == MacOSX ]]; then
+    LIBSSL_MACOSX+=("${TARGETDIR}/lib/libssl.a")
+    LIBCRYPTO_MACOSX+=("${TARGETDIR}/lib/libcrypto.a")
+    OPENSSLCONF_SUFFIX="macosx_${ARCH}"
   else # Catalyst
     LIBSSL_CATALYST+=("${TARGETDIR}/lib/libssl.a")
     LIBCRYPTO_CATALYST+=("${TARGETDIR}/lib/libcrypto.a")
@@ -512,6 +516,9 @@ LIBCRYPTO_WATCHOS=()
 LIBCRYPTO_WATCHOSSIM=()
 LIBSSL_CATALYST=()
 LIBCRYPTO_CATALYST=()
+LIBSSL_MACOSX=()
+LIBCRYPTO_MACOSX=()
+
 
 # Run relevant build loop
 source "${SCRIPTDIR}/scripts/build-loop-targets.sh"
@@ -586,6 +593,16 @@ if [ ${#LIBSSL_WATCHOSSIM[@]} -gt 0 ]; then
   echo "\n=====>watchOS Simulator SSL and Crypto lib files:"
   echo "${CURRENTPATH}/lib/libssl-watchOS-Sim.a"
   echo "${CURRENTPATH}/lib/libcrypto-watchOS-Sim.a"
+fi
+
+# Build Mac library if selected for build
+if [ ${#LIBSSL_MACOSX[@]} -gt 0 ]; then
+  echo "Build library for MacOSX..."
+  lipo -create ${LIBSSL_MACOSX[@]} -output "${CURRENTPATH}/lib/libssl-macosx.a"
+  lipo -create ${LIBCRYPTO_MACOSX[@]} -output "${CURRENTPATH}/lib/libcrypto-macosx.a"
+  echo "\n=====>MacOSX SSL and Crypto lib files:"
+  echo "${CURRENTPATH}/lib/libssl-macosx.a"
+  echo "${CURRENTPATH}/lib/libcrypto-macosx.a"
 fi
 
 # Build Catalyst library if selected for build
@@ -672,6 +689,12 @@ if [ ${#OPENSSLCONF_ALL[@]} -gt 1 ]; then
       ;;
       *_watchos_arm64_32.h)
         DEFINE_CONDITION="TARGET_OS_WATCH && TARGET_CPU_ARM64"
+      ;;
+      *_macosx_x86_64.h)
+        DEFINE_CONDITION="TARGET_OS_OSX && TARGET_CPU_X86_64"
+      ;;
+      *_macosx_arm64.h)
+        DEFINE_CONDITION="TARGET_OS_OSX && TARGET_CPU_ARM64"
       ;;
       *)
         # Don't run into unexpected cases by setting the default condition to false
